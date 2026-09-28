@@ -11,15 +11,23 @@ const chat = document.getElementById('chat');
 const input = document.getElementById('msg');
 const micBtn = document.getElementById('mic-btn');
 
-// ===== 3. GEMINI BRAIN (auto-fallback) =====
+// ===== 3. GEMINI BRAIN (With Google Search & Teluglish Response) =====
 async function callGemini(p){ 
   let lastErr;
+  
+  // System Instruction: Teluglish & fast response prompt
+  const systemInstruction = "Respond in natural, concise Teluglish (Telugu words using English alphabet) or mixed English-Telugu. Keep answers direct and quick. Prompt: " + p;
+
   for(const m of MODELS){
     try{
       const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + m + ":generateContent?key=" + API_KEY, {
         method: "POST",
         headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({contents: [{parts: [{text: p}]}]})
+        body: JSON.stringify({
+          contents: [{parts: [{text: systemInstruction}]}],
+          // Google Search సాధనం ద్వారా రియల్ టైమ్ సమాచారం & కరెంట్ అఫైర్స్ పొందడం
+          tools: [{ googleSearch: {} }]
+        })
       });
       const data = await res.json();
       if(data.error){
@@ -36,11 +44,12 @@ async function callGemini(p){
 }
 
 async function askGemini(p){
+  add('YOU: ' + p, 'user');
   add('J.A.R.V.I.S: Thinking...', 'ai');
   try{
     const reply = await callGemini(p);
     chat.lastChild.innerText = 'J.A.R.V.I.S: ' + reply;
-    speak(reply); // reply వచ్చిన వెంటనే VOICE
+    speak(reply); // సమాధానం వచ్చాక స్పీకర్‌లో చదివి వినిపిస్తుంది
   } catch(e){
     chat.lastChild.innerText = 'J.A.R.V.I.S: ERROR - ' + e.message;
   }
@@ -48,18 +57,26 @@ async function askGemini(p){
 
 // ===== 4. SPEECH RECOGNITION (వినడం) =====
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+let rec = null;
+
 if (SR) {
-  const rec = new SR(); 
-  rec.lang = 'en-US'; // Telugu కి 'te-IN'
+  rec = new SR(); 
+  rec.lang = 'en-US'; // Telugu మాట్లాడితే 'te-IN' కూడా వాడుకోవచ్చు
+
   rec.onresult = (e) => {
     const t = e.results[0][0].transcript;
-    add('YOU: ' + t, 'user');
     askGemini(t);
   };
+
   micBtn.onclick = () => {
-    rec.start();
-    micBtn.innerText = 'LISTENING...';
+    try {
+      rec.start();
+      micBtn.innerText = 'LISTENING...';
+    } catch(err) {
+      console.log("Already listening...");
+    }
   };
+
   rec.onend = () => {
     micBtn.innerText = '🎙️';
   };
@@ -79,6 +96,19 @@ function speak(t){
   u.pitch = 0.85;
   const v = voices.find(v => v.lang.startsWith('en'));
   if(v) u.voice = v;
+
+  // JARVIS సమాధానం చెప్పడం పూర్తయిన వెంటనే మళ్లీ మైక్ ఆటోమేటిక్‌గా ఆన్ అవుతుంది
+  u.onend = () => {
+    if (rec) {
+      try {
+        rec.start();
+        micBtn.innerText = 'LISTENING...';
+      } catch(e) {
+        // అల్రెడీ రన్నింగ్‌లో ఉంటే ప్రశాంతంగా వదిలేస్తుంది
+      }
+    }
+  };
+
   speechSynthesis.speak(u);
 }
 
@@ -86,7 +116,6 @@ function speak(t){
 document.getElementById('send').onclick = () => {
   const t = input.value.trim(); 
   if(!t) return;
-  add('YOU: ' + t, 'user'); 
   input.value = ''; 
   askGemini(t);
 };
