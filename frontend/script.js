@@ -11,11 +11,11 @@ const chat = document.getElementById('chat');
 const input = document.getElementById('msg');
 const micBtn = document.getElementById('mic-btn');
 
-// ===== 3. GEMINI BRAIN (With Google Search & Teluglish Response) =====
+// ===== 3. GEMINI BRAIN (auto-fallback & Teluglish Support) =====
 async function callGemini(p){ 
   let lastErr;
   
-  // System Instruction: Teluglish & fast response prompt
+  // Teluglish prompt
   const systemInstruction = "Respond in natural, concise Teluglish (Telugu words using English alphabet) or mixed English-Telugu. Keep answers direct and quick. Prompt: " + p;
 
   for(const m of MODELS){
@@ -24,9 +24,7 @@ async function callGemini(p){
         method: "POST",
         headers: {"Content-Type": "application/json"},
         body: JSON.stringify({
-          contents: [{parts: [{text: systemInstruction}]}],
-          // Google Search సాధనం ద్వారా రియల్ టైమ్ సమాచారం & కరెంట్ అఫైర్స్ పొందడం
-          tools: [{ googleSearch: {} }]
+          contents: [{parts: [{text: systemInstruction}]}]
         })
       });
       const data = await res.json();
@@ -49,7 +47,7 @@ async function askGemini(p){
   try{
     const reply = await callGemini(p);
     chat.lastChild.innerText = 'J.A.R.V.I.S: ' + reply;
-    speak(reply); // సమాధానం వచ్చాక స్పీకర్‌లో చదివి వినిపిస్తుంది
+    speak(reply); 
   } catch(e){
     chat.lastChild.innerText = 'J.A.R.V.I.S: ERROR - ' + e.message;
   }
@@ -61,7 +59,7 @@ let rec = null;
 
 if (SR) {
   rec = new SR(); 
-  rec.lang = 'en-US'; // Telugu మాట్లాడితే 'te-IN' కూడా వాడుకోవచ్చు
+  rec.lang = 'en-US'; 
 
   rec.onresult = (e) => {
     const t = e.results[0][0].transcript;
@@ -97,14 +95,14 @@ function speak(t){
   const v = voices.find(v => v.lang.startsWith('en'));
   if(v) u.voice = v;
 
-  // JARVIS సమాధానం చెప్పడం పూర్తయిన వెంటనే మళ్లీ మైక్ ఆటోమేటిక్‌గా ఆన్ అవుతుంది
+  // JARVIS చెప్పడం పూర్తయ్యాక మైక్ ఆటోమేటిక్‌గా ఆన్ అవుతుంది
   u.onend = () => {
     if (rec) {
       try {
         rec.start();
         micBtn.innerText = 'LISTENING...';
       } catch(e) {
-        // అల్రెడీ రన్నింగ్‌లో ఉంటే ప్రశాంతంగా వదిలేస్తుంది
+        // Already listening
       }
     }
   };
